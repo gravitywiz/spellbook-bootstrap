@@ -10,11 +10,11 @@
 		"lint": "phpcs",
 		"lint:fix": "phpcbf"
 	},
-    "require": {},
-	"require-dev": {
+    "require-dev": {
 		"dealerdirect/phpcodesniffer-composer-installer": "^1.1.2",
 		"wp-coding-standards/wpcs": "^3.2.0",
-		"phpcompatibility/phpcompatibility-wp": "^2.1"
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+        "php-stubs/wordpress-stubs": "^6.9"
 
 	},
     "config": {
