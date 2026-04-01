@@ -29,6 +29,22 @@ class Bootstrap {
 	private static $instances = [];
 
 	/**
+	 * Plugins that need a Spellbook notice, collected during individual checks.
+	 *
+	 * Each entry is an associative array with a 'name' key.
+	 *
+	 * @var array<string, array{name: string}>
+	 */
+	private static $plugins_needing_notice = [];
+
+	/**
+	 * Whether the consolidated notice callback has been registered.
+	 *
+	 * @var bool
+	 */
+	private static $consolidated_notice_registered = false;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param string $load_file The file to load.
@@ -44,9 +60,11 @@ class Bootstrap {
 
 		add_action( 'after_plugin_row_' . plugin_basename( $this->_root_file ), [ $this, 'display_dependency_warning_after_plugin_row' ], 10, 2 );
 
-		add_action( 'admin_notices', [ $this, 'maybe_show_spellbook_notice' ] );
-
-		add_action( 'network_admin_notices', [ $this, 'maybe_show_spellbook_notice' ] );
+		// Gravityforms de-registers callbacks to admin_notices and network_admin_notices
+		// if their output does not contain "gf-notice". This happens via an admin_head
+		// callback registered with priority 10. Register all of the admin_notices
+		// callbacks after that filtering so that they do not get de-registered.
+		add_action( 'admin_head', [ $this, 'register_notice_hooks' ], 11 );
 	}
 
 	/**
@@ -56,6 +74,18 @@ class Bootstrap {
 	 */
 	public static function get_instances() {
 		return self::$instances;
+	}
+
+	public function register_notice_hooks() {
+		add_action( 'admin_notices', [ $this, 'maybe_register_spellbook_notice' ], 10 );
+
+		// Make sure that the spellbook notice is only rendered one time, not once per
+		// plugin in which spellbook bootstrap is installed.
+		if ( ! self::$consolidated_notice_registered ) {
+			add_action( 'admin_notices', [ __CLASS__, 'render_consolidated_spellbook_notice' ], 11 );
+			add_action( 'network_admin_notices', [ __CLASS__, 'render_consolidated_spellbook_notice' ], 11 );
+			self::$consolidated_notice_registered = true;
+		}
 	}
 
 	/**
@@ -68,7 +98,7 @@ class Bootstrap {
 	 */
 	public function display_dependency_warning_after_plugin_row( $plugin_file, $plugin_data ) {
 
-		if ( $this->is_spellbook_installed() && self::is_spellbook_active() ) {
+		if ( self::is_spellbook_installed() && self::is_spellbook_active() ) {
 			return;
 		}
 
@@ -151,11 +181,10 @@ class Bootstrap {
 	/**
 	 * Determines whether to show the Spellbook notice on the given screen.
 	 *
-	 * @param \WP_Screen|null $screen The current admin screen object.
-	 *
 	 * @return string|null The notice type ('warning' or 'error'), or null if no notice should be shown.
 	 */
-	private function should_show_spellbook_notice_on_screen( $screen ) {
+	private static function get_notice_level() {
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! $screen ) {
 			return null;
 		}
@@ -174,38 +203,100 @@ class Bootstrap {
 	}
 
 	/**
-	 * Displays an admin notice if Spellbook is not installed or active.
+	 * Collects plugin info for the consolidated Spellbook admin notice.
+	 *
+	 * Instead of rendering a notice immediately, this method adds the plugin
+	 * to the list of plugins needing a notice. The actual rendering is handled
+	 * by {@see render_consolidated_spellbook_notice()} at a lower priority.
 	 *
 	 * @return void
 	 */
-	public function maybe_show_spellbook_notice() {
+	public function maybe_register_spellbook_notice() {
 		if ( ! is_admin() ) {
 			return;
 		}
 
-		if ( $this->is_spellbook_installed() && self::is_spellbook_active() ) {
+		if ( self::is_spellbook_installed() && self::is_spellbook_active() ) {
 			return;
 		}
 
-		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! $screen ) {
-			return;
-		}
-
-		$notice_result = $this->should_show_spellbook_notice_on_screen( $screen );
-		if ( ! $notice_result ) {
+		if ( ! self::get_notice_level() ) {
 			return;
 		}
 
 		$name = get_plugin_data( $this->_root_file )['Name'];
 
-		$message = sprintf(
-			'%s requires Spellbook for updates. You can download Spellbook <a href="%s" target="_blank" rel="noopener noreferrer">here</a> (it&#039;s free!).',
-			esc_html( $name ),
+		self::$plugins_needing_notice[ sanitize_title( $name ) ] = [
+			'name' => $name,
+		];
+	}
+
+	/**
+	 * Renders a single consolidated admin notice for all plugins that need Spellbook.
+	 *
+	 * This is registered at a lower priority than the individual collectors so that
+	 * all plugins have had a chance to add themselves to the list before rendering.
+	 *
+	 * @return void
+	 */
+	public static function render_consolidated_spellbook_notice() {
+		if ( empty( self::$plugins_needing_notice ) ) {
+			return;
+		}
+
+		$plugins = self::$plugins_needing_notice;
+
+		// Reset to prevent double-rendering (e.g. if both admin_notices and network_admin_notices fire).
+		self::$plugins_needing_notice = [];
+
+		// Determine notice level for the current screen.
+		$notice_level = self::get_notice_level();
+		$classes      = $notice_level === 'error' ? 'notice notice-error gf-notice' : 'notice notice-warning';
+
+		$download_link = sprintf(
+			'<a href="%s" target="_blank" rel="noopener noreferrer">here</a>',
 			esc_url( 'https://gravitywiz.com/documentation/spellbook/#installation-instructions' )
 		);
 
-		$classes = $notice_result === 'warning' ? 'notice notice-warning' : 'notice notice-error gf-notice';
+		$plugin_names = array_values( array_map( function ( $plugin ) {
+			return '<strong>' . esc_html( $plugin['name'] ) . '</strong>';
+		}, $plugins ) );
+
+		$count = count( $plugin_names );
+
+		if ( $count === 1 ) {
+			$message = sprintf(
+				'%s requires Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
+				$plugin_names[0],
+				$download_link
+			);
+		} elseif ( $count === 2 ) {
+			$message = sprintf(
+				'%s and %s require Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
+				$plugin_names[0],
+				$plugin_names[1],
+				$download_link
+			);
+		} elseif ( $count === 3 ) {
+			$message = sprintf(
+				'%s, %s, and %s require Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
+				$plugin_names[0],
+				$plugin_names[1],
+				$plugin_names[2],
+				$download_link
+			);
+		} else {
+			$remaining = $count - 3;
+			$message   = sprintf(
+				'%s, %s, %s, and %d other Gravity Wiz plugins require Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
+				$plugin_names[0],
+				$plugin_names[1],
+				$plugin_names[2],
+				$remaining,
+				$download_link
+			);
+		}
+
 		printf(
 			'<div class="%s"><p>%s</p></div>',
 			esc_attr( $classes ),
