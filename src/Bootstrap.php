@@ -265,37 +265,38 @@ class Bootstrap {
 		$count = count( $plugin_names );
 
 		if ( $count === 1 ) {
-			$message = sprintf(
-				'%s requires Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
-				$plugin_names[0],
-				$download_link
-			);
+			$plugin_list = $plugin_names[0];
 		} elseif ( $count === 2 ) {
-			$message = sprintf(
-				'%s and %s require Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
-				$plugin_names[0],
-				$plugin_names[1],
-				$download_link
-			);
+			$plugin_list = $plugin_names[0] . ' and ' . $plugin_names[1];
 		} elseif ( $count === 3 ) {
-			$message = sprintf(
-				'%s, %s, and %s require Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
-				$plugin_names[0],
-				$plugin_names[1],
-				$plugin_names[2],
-				$download_link
-			);
+			$plugin_list = $plugin_names[0] . ', ' . $plugin_names[1] . ', and ' . $plugin_names[2];
 		} else {
-			$remaining = $count - 3;
-			$message   = sprintf(
-				'%s, %s, %s, and %d other Gravity Wiz plugins require Spellbook for updates. You can download Spellbook %s (it&#039;s free!).',
+			$remaining   = $count - 3;
+			$plugin_list = sprintf(
+				// translators: %1$s, %2$s, %3$s: plugin names. %4$s: "X other Gravity Wiz plugin(s)".
+				'%1$s, %2$s, %3$s, and %4$s',
 				$plugin_names[0],
 				$plugin_names[1],
 				$plugin_names[2],
-				$remaining,
-				$download_link
+				sprintf(
+					// translators: %d: number of additional plugins.
+					_n( '%d other Gravity Wiz plugin', '%d other Gravity Wiz plugins', $remaining, 'spellbook' ),
+					$remaining
+				)
 			);
 		}
+
+		$message = sprintf(
+			// translators: %1$s: comma-separated list of plugin names. %2$s: download link HTML.
+			_n(
+				'%1$s requires Spellbook for updates. You can download Spellbook %2$s (it&#039;s free!).',
+				'%1$s require Spellbook for updates. You can download Spellbook %2$s (it&#039;s free!).',
+				$count,
+				'spellbook'
+			),
+			$plugin_list,
+			$download_link
+		);
 
 		printf(
 			'<div class="%s"><p>%s</p></div>',
