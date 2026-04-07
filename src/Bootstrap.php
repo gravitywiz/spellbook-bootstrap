@@ -47,15 +47,12 @@ class Bootstrap {
 	/**
 	 * Constructor.
 	 *
-	 * @param string $load_file The file to load.
-	 * @param string $root_file The root plugin file.
+	 * @param array{root_file: string} $config
 	 */
-	public function __construct( $root_file ) {
-		$this->_root_file = $root_file;
+	public function __construct( $config ) {
+		$this->_root_file = $config['root_file'];
 
-		// Pass false for markup and translations as this runs too early for translations to be loaded.
-		$plugin_data              = get_plugin_data( $this->_root_file, false, false );
-		$slug                     = sanitize_title( $plugin_data['Name'] );
+		$slug                     = self::get_slug_from_root_file( $this->_root_file );
 		self::$instances[ $slug ] = $this;
 
 		add_action( 'after_plugin_row_' . plugin_basename( $this->_root_file ), [ $this, 'display_dependency_warning_after_plugin_row' ], 10, 2 );
@@ -74,6 +71,38 @@ class Bootstrap {
 	 */
 	public static function get_instances() {
 		return self::$instances;
+	}
+
+
+	/**
+	 * Given a root file, returns an instance.
+	 *
+	 * @return self
+	 */
+	public static function register( $root_file ) {
+		$slug = self::get_slug_from_root_file( $root_file );
+
+		$instances = self::get_instances();
+		if ( isset( $instances[ $slug ] ) ) {
+			return $instances[ $slug ];
+		}
+
+		$instance = new self( [ 'root_file' => $root_file ] );
+
+		return $instance;
+	}
+
+	/**
+	 * Given a plugin root file, generates a slug for the plugin.
+	 *
+	 * @return string
+	 */
+	public static function get_slug_from_root_file( $root_file ) {
+		// Pass false for markup and translations as this sometimes runs before translations are loaded.
+		$plugin_data = get_plugin_data( $root_file, false, false );
+		$slug        = sanitize_title( $plugin_data['Name'] );
+
+		return $slug;
 	}
 
 	public function register_notice_hooks() {
