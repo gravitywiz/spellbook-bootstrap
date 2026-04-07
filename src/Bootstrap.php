@@ -126,7 +126,7 @@ class Bootstrap {
 				</style>
 
 				<tr class="plugin-update-tr active gwp-plugin-notice">
-					<td colspan="3" class="colspanchange">
+					<td colspan="4" class="colspanchange">
 						<div class="update-message notice inline notice-error notice-alt">
 							<p>
 								<?php
