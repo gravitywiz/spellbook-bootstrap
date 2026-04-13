@@ -98,6 +98,10 @@ class Bootstrap {
 	 * @return string
 	 */
 	public static function get_slug_from_root_file( $root_file ) {
+		if ( ! function_exists( 'get_plugin_data' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
 		// Pass false for markup and translations as this sometimes runs before translations are loaded.
 		$plugin_data = get_plugin_data( $root_file, false, false );
 		$slug        = sanitize_title( $plugin_data['Name'] );
@@ -251,6 +255,10 @@ class Bootstrap {
 
 		if ( ! self::get_notice_level() ) {
 			return;
+		}
+
+		if ( ! function_exists( 'get_plugin_data' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		}
 
 		$name = get_plugin_data( $this->_root_file )['Name'];
