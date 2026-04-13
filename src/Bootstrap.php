@@ -318,8 +318,8 @@ class Bootstrap {
 		$message = sprintf(
 			// translators: %1$s: comma-separated list of plugin names. %2$s: download link HTML.
 			_n(
-				'%1$s requires Spellbook for updates. You can download Spellbook %2$s (it&#039;s free!).',
-				'%1$s require Spellbook for updates. You can download Spellbook %2$s (it&#039;s free!).',
+				'%1$s requires Spellbook. You can download Spellbook %2$s (it&#039;s free!).',
+				'%1$s require Spellbook. You can download Spellbook %2$s (it&#039;s free!).',
 				$count,
 				'spellbook'
 			),
